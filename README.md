@@ -33,10 +33,9 @@ The production server listens on `PORT` (default 5000), serves `dist/`, and expo
 
 ## Deployment reality
 
-- Vercel configuration builds and publishes the static frontend only.
+- Public sample preview: [https://swapno-ai.vercel.app/](https://swapno-ai.vercel.app/). It serves the static frontend only.
 - Render configuration builds Express but sets `PUBLIC_DEMO_MODE=true`; in addition, all `NODE_ENV=production` API requests are blocked by the current server guard.
-- No staging deployment URL is verified. Do not connect customer accounts or enter customer data.
-- The frontend currently has a hard-coded sample/demo switch. API authentication, database persistence, and provider generation are not available in the public deployment.
+- There is no hosted backend or staging API. The frontend is a sample/demo experience; account authentication, durable database persistence, AI generation, social connections, and publishing are not available in the public deployment. Do not connect customer accounts or enter customer data.
 
 See [DEPLOYMENT-GUIDE.md](docs/DEPLOYMENT-GUIDE.md), [PROJECT-STATUS.md](PROJECT-STATUS.md), and the [staging release report](docs/release/STAGING-RELEASE-REPORT.md).
 

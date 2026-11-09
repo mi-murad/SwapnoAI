@@ -5,7 +5,7 @@
 **Base branch:** `main`<br>
 **Base commit:** `bdc4bd990ddb3f994bd2d2423924469467d7bab7`<br>
 **Handoff branch:** `claude/handoff-2026-11-09` (pushed to `origin`)<br>
-**Stage:** Local implementation and documentation handoff; branch is published, but the application is not production-ready or staging-deployed.
+**Stage:** Static public demo deployed; the product is not production-ready as an account-based SaaS.
 
 The npm package metadata still uses the generic name `react-example` and version `0.0.0`; this is repository hygiene debt and not a runtime dependency.
 
@@ -21,7 +21,7 @@ The npm package metadata still uses the generic name `react-example` and version
 | Trial | Server defaults: 7 days, 25 actions, no card and no automatic charge. Status endpoint is server-derived. Usage helpers are not wired to real AI operations; generation is disabled for account workspaces. |
 | AI | Separate Gemini/Groq/OpenRouter connection-test registry; live calls require per-provider explicit flags. No live provider success verified. Legacy sample endpoints contain simulated/canned fallbacks in development and must not be presented as reliable AI. |
 | Integrations | Social OAuth, actual publishing, persistent asset storage, verified analytics, email lifecycle, and background workers are not implemented. |
-| Hosting | Vercel is static-only. Render config sets demo mode; production Express blocks `/api/*`. No staging URL is verified. |
+| Hosting | [Public Vercel demo](https://swapno-ai.vercel.app/) serves the static frontend. No backend or staging API is deployed; Render config sets demo mode and production Express blocks `/api/*`. |
 | Brand | User-provided palette applied; official brand source remains unverified. No official logo artwork or exact font confirmation was found. |
 
 ## Verification actually completed
@@ -35,8 +35,9 @@ The npm package metadata still uses the generic name `react-example` and version
 - Isolated account API flow — registration returned 201, products/goals were returned after signup, attempted client publication returned 409, and a normal workspace save returned 200. Used temporary storage and test-only data.
 - Code review fixes — login state validation now retains optional products/goals; workspace state updates reject new client-authored `published` statuses.
 - Local UI inspections — signup/review/learning surfaces at 390, 768, and 1440 px; no horizontal overflow in inspected screens. This is not a full authenticated or screen-reader test.
+- Published frontend check — `https://swapno-ai.vercel.app/` returned HTTP 200 and served the same JS/CSS asset hashes as the local production build after pushing commit `d9215fa70a8fb4eb93dcb83991b65633b5261388` to `main`. The public NiRBAAN sample opened successfully; at 390 px, page width matched viewport width. This validates only the static demo, not API or account workflows.
 - `git diff --check` — passed at last verification; line-ending warnings only.
-- No staging deploy, live provider request, database migration, production migration, or deployed customer-flow test was performed.
+- No staging backend, live provider request, database migration, production migration, or deployed customer-account flow was tested.
 
 For detailed history, see [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md). For current deployment status, see [docs/release/STAGING-RELEASE-REPORT.md](docs/release/STAGING-RELEASE-REPORT.md).
 

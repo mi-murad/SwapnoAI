@@ -4,8 +4,9 @@
 **Official repository:** `https://github.com/mi-murad/SwapnoAI`<br>
 **Base branch:** `main`<br>
 **Base commit observed:** `bdc4bd990ddb3f994bd2d2423924469467d7bab7`<br>
-**Handoff branch:** `claude/handoff-2026-11-09` (pushed to `origin`; verify the latest tip before starting). Do not assume `main` contains this handoff.<br>
-**Deployment:** No verified staging frontend/backend URL. No deployment was performed during this work.
+**Handoff branch:** `claude/handoff-2026-11-09` (merged into `main` by fast-forward and pushed).<br>
+**Latest commit:** `d9215fa70a8fb4eb93dcb83991b65633b5261388` (verify the current tip before starting).<br>
+**Deployment:** Static public demo at [https://swapno-ai.vercel.app/](https://swapno-ai.vercel.app/); no backend or staging API is deployed.
 
 ## 1. Product and target
 
@@ -50,7 +51,7 @@ Read [architecture](../ARCHITECTURE.md), [deployment guide](../DEPLOYMENT-GUIDE.
 - Base branch at audit start: `main`
 - Base commit: `bdc4bd990ddb3f994bd2d2423924469467d7bab7`
 - At audit start the working tree contained prior Copilot implementation changes, none staged; local JSON and environment files were ignored.
-- The handoff branch push succeeded. Verify the current SHA with `git rev-parse HEAD` and compare it with `git ls-remote origin refs/heads/claude/handoff-2026-11-09`. A push to `main` may trigger production and must not be used without verifying hosting branch settings.
+- The handoff branch was pushed and then fast-forwarded to `main` at the owner's request. Verify the current SHA with `git rev-parse HEAD` and compare it with `git ls-remote origin refs/heads/main`.
 
 ## 6. Environment setup
 
@@ -60,10 +61,10 @@ Use Node.js 24.x. `npm ci`; `npm run dev`; open `http://localhost:5000`. `npm ru
 
 - Vercel: static frontend configuration only.
 - Render: Express service configuration with `PUBLIC_DEMO_MODE=true`; API routes are blocked under production.
-- Staging frontend URL: none verified.
-- Staging backend URL / health: none deployed or verified.
+- Public static demo: [https://swapno-ai.vercel.app/](https://swapno-ai.vercel.app/). It returned HTTP 200 and loaded the same JS/CSS asset hashes as the local build after the `main` push; the sample workspace opened and the page fit a 390 px viewport without horizontal overflow.
+- Backend/staging API URL / health: none deployed or verified. The frontend has no hosted API connection; no account or customer-data workflows are available at the public URL.
 - Do not claim production/customer readiness from local builds. Do not enter real customer data.
-- Host CLI tools and deployment credentials were not available during this handoff. The branch push is verified, but no preview was deployed; deployment readiness is not implied by a GitHub branch.
+- Vercel/Render CLI credentials were unavailable. Publishing the GitHub `main` update resulted in the public static site serving the matching frontend build; this does not imply backend deployment or SaaS readiness.
 
 ## 8. Database and authentication
 

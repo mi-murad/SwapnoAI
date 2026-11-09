@@ -10,9 +10,9 @@
 
 `render.yaml` builds `npm ci --no-audit --no-fund && npm run build`, starts with `npm start`, and checks `/healthz`. It sets `PUBLIC_DEMO_MODE=true` and `NODE_ENV=production`. The Express guard also blocks APIs for all production mode, so this is not an account backend. Render's free filesystem is ephemeral and not suitable for JSON customer data.
 
-## Staging status
+## Public deployment status
 
-No staging frontend or backend URL has been verified. In this environment, Vercel/Render CLIs and deployment credential variables were unavailable. Do not claim a deploy based on local build or repository push. The exact release decision and blockers are in [release report](release/STAGING-RELEASE-REPORT.md).
+The static sample frontend is live at [https://swapno-ai.vercel.app/](https://swapno-ai.vercel.app/). After publishing commit `d9215fa70a8fb4eb93dcb83991b65633b5261388` to `main`, the URL returned HTTP 200 and served the same JavaScript/CSS asset hashes as the local build. The sample workspace opened in a browser. This confirms only the static demo: no hosted backend, staging API, account persistence, or live AI integration is connected. Do not enter real customer information. The exact scope and remaining blockers are in the [release report](release/STAGING-RELEASE-REPORT.md).
 
 ## Safe future staging sequence
 

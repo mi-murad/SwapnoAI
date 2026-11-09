@@ -2,7 +2,7 @@
 
 **Last verified:** 2026-11-09
 **Repository:** `mi-murad/SwapnoAI`, branch `main`
-**Current stage:** Incremental SaaS foundation work; not production-ready
+**Current stage:** Static public demo is deployed; the account-based SaaS is not production-ready.
 
 ## Current state
 
@@ -15,7 +15,7 @@
 | Provider foundation | Server-side Gemini, Groq, and OpenRouter connection-test adapters are registered. Tests use mock clients; no provider has been live-verified. |
 | AI generation/fallback | No production provider generation router or persistent usage ledger is active. Trial counting helpers exist but are not wired to real AI operations. Paid providers are not automatic fallbacks. |
 | Trial and learning UX | Seven-day/25-action policy is server-configurable for the local JSON backend. Dates/status are server-calculated; account AI is disabled, so usage remains zero. Onboarding progress is saved with workspace state. |
-| Deployment | Vercel remains a static frontend. Render remains in public demo mode, and production APIs are intentionally blocked. |
+| Deployment | [Vercel public demo](https://swapno-ai.vercel.app/) serves the static frontend. Render remains in public demo mode, and production APIs are intentionally blocked. No hosted backend/staging API is connected. |
 | UI integrations | Account overview, Adviser, profile, trial, and learning surfaces are improved. Publishing, OAuth, analytics, and some AI flows remain simulated or unavailable; do not treat them as live integrations. |
 
 ## Implemented in this phase
@@ -42,7 +42,8 @@
 - A corrupt-JSON safety check confirmed the original local database file remains unchanged when startup rejects unreadable JSON.
 - The SQL migration was not executed; no authorized staging database was used for migration or RLS testing.
 - Landing, signup, review, and public-sample learning screens were inspected in a local Vite browser at 390px, 768px, and 1440px; no horizontal overflow was measured. Lesson focus, Tab/Shift+Tab trapping, and Escape dismissal were checked. No authenticated-account, expired-trial, or screen-reader acceptance test was performed.
-- Current branch `main` tracks `origin/main`, but this working tree contains many uncommitted changes. No commit was created and no deployment was performed.
+- After commit `d9215fa70a8fb4eb93dcb83991b65633b5261388` was pushed to `main`, the public Vercel page returned HTTP 200 and served the same JS/CSS asset hashes as the local production build. The NiRBAAN sample opened; at 390px page width equaled viewport width. These checks cover only the static demo, not API or account workflows.
+- Commit `d9215fa70a8fb4eb93dcb83991b65633b5261388` is on `main` and `origin/main`; the worktree is clean.
 
 ## Critical remaining blockers
 
