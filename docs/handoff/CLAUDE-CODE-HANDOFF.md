@@ -5,7 +5,7 @@
 **Base branch:** `main`<br>
 **Base commit observed:** `bdc4bd990ddb3f994bd2d2423924469467d7bab7`<br>
 **Handoff branch:** `claude/handoff-2026-11-09` (merged into `main` by fast-forward and pushed).<br>
-**Latest commit:** `d9215fa70a8fb4eb93dcb83991b65633b5261388` (verify the current tip before starting).<br>
+**Deployment code commit:** `d9215fa70a8fb4eb93dcb83991b65633b5261388` (subsequent documentation updates are also on `main`; verify the current tip before starting).<br>
 **Deployment:** Static public demo at [https://swapno-ai.vercel.app/](https://swapno-ai.vercel.app/); no backend or staging API is deployed.
 
 ## 1. Product and target
