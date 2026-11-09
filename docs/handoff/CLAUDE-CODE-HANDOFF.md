@@ -4,7 +4,7 @@
 **Official repository:** `https://github.com/mi-murad/SwapnoAI`<br>
 **Base branch:** `main`<br>
 **Base commit observed:** `bdc4bd990ddb3f994bd2d2423924469467d7bab7`<br>
-**Handoff branch:** `claude/handoff-2026-11-09` (created; verify its remote tip after push). Do not assume `main` contains this handoff.<br>
+**Handoff branch:** `claude/handoff-2026-11-09` (pushed to `origin`; verify the latest tip before starting). Do not assume `main` contains this handoff.<br>
 **Deployment:** No verified staging frontend/backend URL. No deployment was performed during this work.
 
 ## 1. Product and target
@@ -50,7 +50,7 @@ Read [architecture](../ARCHITECTURE.md), [deployment guide](../DEPLOYMENT-GUIDE.
 - Base branch at audit start: `main`
 - Base commit: `bdc4bd990ddb3f994bd2d2423924469467d7bab7`
 - At audit start the working tree contained prior Copilot implementation changes, none staged; local JSON and environment files were ignored.
-- The final handoff commit SHA must be read from `git rev-parse HEAD` and verified against the remote branch tip. A push to `main` may trigger production and must not be used without verifying hosting branch settings.
+- The handoff branch push succeeded. Verify the current SHA with `git rev-parse HEAD` and compare it with `git ls-remote origin refs/heads/claude/handoff-2026-11-09`. A push to `main` may trigger production and must not be used without verifying hosting branch settings.
 
 ## 6. Environment setup
 
@@ -63,7 +63,7 @@ Use Node.js 24.x. `npm ci`; `npm run dev`; open `http://localhost:5000`. `npm ru
 - Staging frontend URL: none verified.
 - Staging backend URL / health: none deployed or verified.
 - Do not claim production/customer readiness from local builds. Do not enter real customer data.
-- Host CLI tools and deployment credentials were not available during this handoff. The push/preview state must be verified separately; deployment readiness is not implied by a GitHub branch.
+- Host CLI tools and deployment credentials were not available during this handoff. The branch push is verified, but no preview was deployed; deployment readiness is not implied by a GitHub branch.
 
 ## 8. Database and authentication
 
