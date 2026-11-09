@@ -25,6 +25,20 @@ compiled frontend from `dist/` and exposes `/healthz` for hosting health checks.
 
 ## Public preview deployment
 
+### Vercel
+
+The root `vercel.json` configures Vercel to build and publish only the Vite
+frontend. Set the Vercel project root to the repository root and use the Vite
+framework preset; the build command and output directory are pinned in
+`vercel.json`. `package.json` pins the build to Node.js 24.x.
+
+This is a static, sample-only preview. Vercel does not run the Express server,
+and the production demo intentionally disables backend APIs, authentication,
+and AI calls. No environment variables are required for this preview. Do not
+use this deployment for customer data or as the production SaaS backend.
+
+### Render
+
 The root `render.yaml` configures a free Render web service. Create a Render
 Blueprint from this GitHub repository and select the free plan; no paid services
 are required for the preview.
