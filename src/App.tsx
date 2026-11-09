@@ -1,29 +1,57 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { z } from 'zod';
 import { 
   Settings, Sliders, Play, Trash2, Send, Plus, RefreshCw, 
   Facebook, Instagram, Shield, Award, ClipboardList, Briefcase, 
   Zap, Compass, Target, Info, Check, CheckCircle2, ChevronRight,
   TrendingUp, AlertCircle, Trash, SlidersHorizontal, Brain, LayoutDashboard,
-  Calendar, FileText, Database, Users, LogOut, Lock, Sparkles, BarChart3
+  Calendar, FileText, Database, Users, LogOut, Lock, Sparkles, BarChart3, Menu, BookOpen
 } from 'lucide-react';
 
-import { SwapnoAppState, ContentItem, BusinessSetup, BusinessBrain } from './types';
+import { SwapnoAppState, ContentItem, BusinessSetup, BusinessBrain, TrialSnapshot } from './types';
 import { workspaceAData, workspaceBData } from './data/workspaceData';
 import { FloatingAI } from './components/FloatingAI';
 import { CommandCenter } from './components/CommandCenter';
 import { MarketIntelligence } from './components/MarketIntelligence';
 import { ContentStudio } from './components/ContentStudio';
 import { Login } from './components/Login';
+import { apiFetch } from './api';
+import { FirstUseChecklist, GuidedLearning } from './components/GuidedLearning';
+import { MarketingAdviser } from './components/MarketingAdviser';
 
 const PUBLIC_DEMO_MODE = true;
+const ACCOUNT_FEATURE_LIMITATION = 'AI generation, publishing, integrations and report export are not connected for account workspaces. No external action was performed.';
+const TrialSnapshotSchema = z.object({
+  status: z.enum(['active', 'expired']),
+  startedAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  serverNow: z.string().datetime(),
+  remainingMilliseconds: z.number().nonnegative(),
+  durationDays: z.number().int().positive(),
+  actionLimit: z.number().int().positive(),
+  actionsUsed: z.number().int().nonnegative(),
+  actionsRemaining: z.number().int().nonnegative(),
+  includedActions: z.array(z.enum(['adviser', 'research', 'strategy', 'text_content'])),
+  cardRequired: z.literal(false),
+  automaticCharge: z.literal(false),
+  supportContactUrl: z.string().optional()
+});
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentWorkspace, setCurrentWorkspace] = useState<'A' | 'B'>('A');
   const [workspaceA, setWorkspaceA] = useState<SwapnoAppState>(workspaceAData);
   const [workspaceB, setWorkspaceB] = useState<SwapnoAppState>(workspaceBData);
+  const [authenticatedWorkspaceId, setAuthenticatedWorkspaceId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [trialSnapshot, setTrialSnapshot] = useState<TrialSnapshot | null>(null);
+  const [trialLoading, setTrialLoading] = useState(false);
+  const [adviserPromptRequest, setAdviserPromptRequest] = useState<{ id: number; prompt: string } | null>(null);
+  const [workspaceSaveStatus, setWorkspaceSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const saveRequestId = useRef(0);
   
   // Custom variables for simulation
   const [metaConnected, setMetaConnected] = useState(false);
@@ -50,32 +78,40 @@ export default function App() {
   const state = currentWorkspace === 'A' ? workspaceA : workspaceB;
 
   const setState = (update: SwapnoAppState | ((prev: SwapnoAppState) => SwapnoAppState)) => {
+    const currentState = currentWorkspace === 'A' ? workspaceA : workspaceB;
+    const next = typeof update === 'function' ? update(currentState) : update;
     if (currentWorkspace === 'A') {
-      setWorkspaceA(prev => {
-        const next = typeof update === 'function' ? update(prev) : update;
-        saveStateToServer(next);
-        return next;
-      });
+      setWorkspaceA(next);
+      void saveStateToServer(next);
     } else {
-      setWorkspaceB(prev => {
-        const next = typeof update === 'function' ? update(prev) : update;
-        return next;
-      });
+      setWorkspaceB(next);
     }
   };
 
   // Sync to database
-  const saveStateToServer = async (s: SwapnoAppState) => {
-    if (PUBLIC_DEMO_MODE) return;
-    try {
-      await fetch('/api/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(s)
-      });
-    } catch (err) {
-      console.warn("Backend save skipped. Running in browser memory mode.");
-    }
+  const saveStateToServer = (s: SwapnoAppState): Promise<void> => {
+    if (PUBLIC_DEMO_MODE && !authenticatedWorkspaceId) return Promise.resolve();
+    const requestId = ++saveRequestId.current;
+    setWorkspaceSaveStatus('saving');
+    const save = async () => {
+      try {
+        const path = authenticatedWorkspaceId
+          ? `/api/v1/workspaces/${encodeURIComponent(authenticatedWorkspaceId)}/state`
+          : '/api/state';
+        const response = await apiFetch(path, {
+          method: authenticatedWorkspaceId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(s)
+        });
+        if (!response.ok) throw new Error(`Workspace save failed with status ${response.status}.`);
+        if (requestId === saveRequestId.current) setWorkspaceSaveStatus('saved');
+      } catch (error) {
+        console.error('Workspace save failed.', error);
+        if (requestId === saveRequestId.current) setWorkspaceSaveStatus('error');
+      }
+    };
+    saveQueue.current = saveQueue.current.catch(() => undefined).then(save);
+    return saveQueue.current;
   };
 
   // On mount, load Workspace A state from the server database
@@ -83,7 +119,7 @@ export default function App() {
     if (PUBLIC_DEMO_MODE) return;
     const fetchState = async () => {
       try {
-        const res = await fetch('/api/state');
+        const res = await apiFetch('/api/state');
         if (res.ok) {
           const data = await res.json();
           if (data && data.businessSetup) {
@@ -104,6 +140,11 @@ export default function App() {
 
   // 1. Core API Integration Callouts (Drafting Copywriting via Backend)
   const handleGenerateCopy = async (id: string) => {
+    if (authenticatedWorkspaceId) {
+      window.alert(ACCOUNT_FEATURE_LIMITATION);
+      return;
+    }
+
     // Set loading state on active item
     setState(prev => {
       const updatedPlan = prev.contentPlan.map(p => 
@@ -115,7 +156,7 @@ export default function App() {
     try {
       const postToGenerate = state.contentPlan.find(p => p.id === id);
 
-      const res = await fetch('/api/ai/generate-content', {
+      const res = await apiFetch('/api/ai/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -175,6 +216,11 @@ export default function App() {
 
   // 2. Visual Graphic Prompt Generator (Imagen 3 via Backend)
   const handleGenerateImage = async (id: string) => {
+    if (authenticatedWorkspaceId) {
+      window.alert(ACCOUNT_FEATURE_LIMITATION);
+      return;
+    }
+
     setState(prev => {
       const updatedPlan = prev.contentPlan.map(p => 
         p.id === id ? { ...p, generationStatus: 'generating' as const } : p
@@ -186,7 +232,7 @@ export default function App() {
     const imagePromptText = postToGenerate?.imagePrompt || "stunning visual mockup design";
 
     try {
-      const res = await fetch('/api/ai/generate-image', {
+      const res = await apiFetch('/api/ai/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -285,19 +331,27 @@ export default function App() {
 
   // 6. Force Publish Now instantly
   const handlePublishNow = (id: string) => {
+    if (authenticatedWorkspaceId) {
+      window.alert(ACCOUNT_FEATURE_LIMITATION);
+      return;
+    }
     addMemoryNode("Demo mode: publishing is unavailable; no post was sent.", 'manual');
     window.alert("Publishing is not connected in this demo. No post was sent.");
   };
 
   // 7. Core strategic recalculations
   const handleRunPlanning = async () => {
+    if (authenticatedWorkspaceId) {
+      window.alert(ACCOUNT_FEATURE_LIMITATION);
+      return;
+    }
     if (PUBLIC_DEMO_MODE) {
       addMemoryNode("Demo mode: the calendar uses sample content; no AI planning request was made.", "system");
       return;
     }
     addMemoryNode("Executing automated marketing campaign planning pipeline...", "system");
     try {
-      const res = await fetch('/api/ai/plan', {
+      const res = await apiFetch('/api/ai/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessSetup: state.businessSetup, strategy: state.strategy })
@@ -315,13 +369,17 @@ export default function App() {
   };
 
   const handleRunResearch = async () => {
+    if (authenticatedWorkspaceId) {
+      window.alert(ACCOUNT_FEATURE_LIMITATION);
+      return;
+    }
     if (PUBLIC_DEMO_MODE) {
       addMemoryNode("Demo mode: research uses sample data; no live research request was made.", "system");
       return;
     }
     addMemoryNode("Re-evaluating target keywords, trend indices, and competitor traffic metrics...", "system");
     try {
-      const res = await fetch('/api/ai/research', {
+      const res = await apiFetch('/api/ai/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ state })
@@ -364,6 +422,10 @@ export default function App() {
 
   // Simulate Export PDF Executive briefing
   const triggerPdfExport = () => {
+    if (authenticatedWorkspaceId) {
+      window.alert(ACCOUNT_FEATURE_LIMITATION);
+      return;
+    }
     setExportPdfLoading(true);
     setExportSuccess(false);
     setTimeout(() => {
@@ -375,6 +437,10 @@ export default function App() {
 
   // Simulated Meta Login Popup integration
   const authorizeMetaSuite = () => {
+    if (authenticatedWorkspaceId) {
+      window.alert(ACCOUNT_FEATURE_LIMITATION);
+      return;
+    }
     setShowMetaDialog(true);
   };
 
@@ -406,6 +472,9 @@ export default function App() {
       tone: string;
     }
   ) => {
+    setAuthenticatedWorkspaceId(null);
+    setWorkspaceA(workspaceAData);
+    setWorkspaceB(workspaceBData);
     setCurrentWorkspace(workspace);
     setIsLoggedIn(true);
     
@@ -436,36 +505,76 @@ export default function App() {
     }, 100);
   };
 
+  const handleAuthenticatedLogin = (workspaceId: string, workspaceState: SwapnoAppState) => {
+    setAuthenticatedWorkspaceId(workspaceId);
+    setCurrentWorkspace('A');
+    setWorkspaceA(workspaceState);
+    setWorkspaceSaveStatus('idle');
+    setIsLoggedIn(true);
+    setActiveTab('dashboard');
+    setTrialLoading(true);
+    void apiFetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/trial`)
+      .then(async response => {
+        const body: unknown = await response.json();
+        const parsed = z.object({ success: z.boolean(), data: z.unknown() }).safeParse(body);
+        if (!response.ok || !parsed.success || !parsed.data.success) {
+          throw new Error('Trial status could not be loaded.');
+        }
+        const trial = TrialSnapshotSchema.safeParse(parsed.data.data);
+        if (!trial.success) throw new Error('The server returned invalid trial details.');
+        setTrialSnapshot(trial.data);
+      })
+      .catch(error => {
+        console.error('Could not load workspace trial status.', error);
+        setTrialSnapshot(null);
+      })
+      .finally(() => setTrialLoading(false));
+  };
+
   // RENDER LOGIN SCREEN IF NOT LOGGED IN
   if (!isLoggedIn) {
-    return <Login onLogin={handleLogin} />;
+    return <Login onLogin={handleLogin} onAuthenticated={handleAuthenticatedLogin} />;
   }
 
   return (
     <div className="flex h-screen bg-black font-sans text-neutral-200 overflow-hidden">
+      {isMobileNavOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={() => setIsMobileNavOpen(false)}
+          className="fixed inset-0 z-20 bg-black/70 md:hidden"
+        />
+      )}
       
       {/* 1. Sleek Navigation Sidebar (8 tabs vertical menu - collapsible & slidable) */}
-      <aside className={`bg-neutral-950 border-r border-neutral-800/80 flex flex-col justify-between flex-shrink-0 z-20 transition-all duration-300 ease-in-out ${
+      <aside className={`fixed inset-y-0 left-0 z-30 flex flex-shrink-0 flex-col justify-between border-r border-neutral-800/80 bg-neutral-950 transition-all duration-200 md:relative md:z-20 ${
+        isMobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      } ${
         isSidebarCollapsed ? 'w-16' : 'w-64'
       }`}>
         
         {/* Top Branding Section with Active Brand Descriptor */}
         <div className="p-4 space-y-4 overflow-hidden">
           <div className="flex items-center justify-between gap-2 px-1">
-            <div className="flex items-center gap-2">
-              <div 
-                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                className="w-8 h-8 rounded-xl bg-orange-600 flex items-center justify-center font-black text-white text-base shadow shadow-orange-600/20 cursor-pointer hover:bg-orange-500 transition-colors"
-                title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.matchMedia('(min-width: 768px)').matches) setIsSidebarCollapsed(!isSidebarCollapsed);
+                  else setIsMobileNavOpen(false);
+                }}
+                aria-label={isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-700 text-[#FFD400] hover:bg-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF4F00]"
               >
-                S
-              </div>
+                <Menu className="h-4 w-4" aria-hidden="true" />
+              </button>
               {!isSidebarCollapsed && (
                 <div className="animate-in fade-in duration-200">
-                  <h2 className="text-xs font-black tracking-widest text-white uppercase font-display flex items-center gap-1 leading-none">
-                    SWAPNO AI <Sparkles className="w-3.5 h-3.5 text-orange-500 fill-orange-500" />
+                  <h2 className="flex items-center gap-1 text-sm font-bold leading-none tracking-wide text-white">
+                    SWAPNO AI
                   </h2>
-                  <span className="text-[8px] font-mono font-bold tracking-wider text-neutral-500 uppercase mt-0.5 block">Marketing OS Beta v1.0</span>
+                  <span className="mt-1 block text-xs text-neutral-400">by SWAPNO TECH</span>
                 </div>
               )}
             </div>
@@ -496,15 +605,17 @@ export default function App() {
         </div>
 
         {/* Sidebar Links (Clean 8-tab workspace menu) */}
-        <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
+        <nav aria-label="Main navigation" className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
           {[
-            { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
-            { id: 'content', label: 'Content Studio', icon: Calendar },
-            { id: 'research', label: 'Research', icon: Compass },
+            { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+            { id: 'adviser', label: 'Marketing Adviser', icon: Sparkles },
+            { id: 'research', label: 'Market Research', icon: Compass },
+            { id: 'content', label: 'Content Calendar & Studio', icon: Calendar },
             { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-            { id: 'knowledge', label: 'Knowledge Vault', icon: Database },
-            { id: 'automation', label: 'Automation', icon: Zap },
-            { id: 'profile', label: 'Brand Profile', icon: Briefcase },
+            { id: 'profile', label: 'Business Profile', icon: Briefcase },
+            { id: 'connections', label: 'Social Connections', icon: Users },
+            ...(authenticatedWorkspaceId ? [{ id: 'trial', label: 'Trial and Usage', icon: Zap }] : []),
+            { id: 'learn', label: 'Help / Learn', icon: BookOpen },
             { id: 'settings', label: 'Settings', icon: Settings },
           ].map((link) => {
             const Icon = link.icon;
@@ -512,18 +623,19 @@ export default function App() {
             return (
               <button
                 key={link.id}
-                onClick={() => setActiveTab(link.id)}
-                className={`w-full py-2 rounded-lg text-xs font-bold flex items-center transition-all cursor-pointer ${
+                onClick={() => { setActiveTab(link.id); setIsMobileNavOpen(false); }}
+                aria-current={isActive ? 'page' : undefined}
+                className={`min-h-11 w-full rounded-lg py-2 text-sm font-semibold flex items-center transition-colors ${
                   isSidebarCollapsed ? 'px-0 justify-center' : 'px-3 justify-between'
                 } ${
                   isActive 
-                    ? 'bg-neutral-900 text-white font-black border-l-2 border-orange-500' 
+                    ? 'bg-neutral-900 text-white border-l-2 border-[#FF4F00]'
                     : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/30'
                 }`}
                 title={isSidebarCollapsed ? link.label : undefined}
               >
                 <div className="flex items-center gap-2.5">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-orange-500' : 'text-neutral-500'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-[#FF4F00]' : 'text-neutral-400'}`} aria-hidden="true" />
                   {!isSidebarCollapsed && <span className="animate-in fade-in duration-200">{link.label}</span>}
                 </div>
                 {!isSidebarCollapsed && isActive && <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>}
@@ -538,16 +650,33 @@ export default function App() {
         }`}>
           {!isSidebarCollapsed ? (
             <div className="min-w-0 flex-1 animate-in fade-in duration-200">
-              <span className="text-[8px] font-mono font-bold text-neutral-500 block uppercase tracking-wider">Sample Workspace</span>
-                  <span className="text-[11px] font-bold text-neutral-300 block truncate">Demo visitor</span>
+              <span className="text-[8px] font-mono font-bold text-neutral-500 block uppercase tracking-wider">
+                {authenticatedWorkspaceId ? 'Authenticated Workspace' : 'Sample Workspace'}
+              </span>
+              <span className="text-[11px] font-bold text-neutral-300 block truncate">
+                {authenticatedWorkspaceId ? state.businessSetup.name : 'Demo visitor'}
+              </span>
             </div>
           ) : null}
           <button 
             onClick={() => {
+              if (authenticatedWorkspaceId) {
+                void apiFetch('/api/v1/auth/logout', { method: 'POST' }).catch(error => {
+                  console.error('Server logout request failed.', error);
+                });
+                setAuthenticatedWorkspaceId(null);
+                setTrialSnapshot(null);
+                setTrialLoading(false);
+                setWorkspaceSaveStatus('idle');
+                setWorkspaceA(workspaceAData);
+                setWorkspaceB(workspaceBData);
+                setCurrentWorkspace('A');
+              }
               setIsLoggedIn(false);
             }}
             className="p-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer border border-neutral-850 flex-shrink-0"
-            title="Exit Operating Session"
+            title="Log out"
+            aria-label="Log out"
           >
             <LogOut className="w-3.5 h-3.5" />
           </button>
@@ -557,13 +686,21 @@ export default function App() {
 
       {/* 2. Main Content Workspace */}
       <main className="flex-1 flex flex-col min-w-0 bg-black relative overflow-hidden">
-        <div className="bg-amber-950/80 border-b border-amber-700/40 px-4 py-2 text-center text-[10px] font-mono font-bold text-amber-200">
+        {!authenticatedWorkspaceId && <div className="border-b border-amber-700/40 bg-amber-950/80 px-4 py-2 text-center text-xs font-medium text-amber-100">
           PUBLIC DEMO — fictional sample data; AI responses are simulated; no accounts, integrations, publishing, or server-side saving. Refresh to reset.
-        </div>
+        </div>}
         
         {/* Top Header Rail */}
         <header className="h-14 border-b border-neutral-900 px-6 flex items-center justify-between flex-shrink-0 bg-neutral-950/40 backdrop-blur-md z-10">
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-700 text-neutral-100 hover:bg-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500 md:hidden"
+              aria-label="Open navigation"
+            >
+              <Menu className="h-5 w-5" aria-hidden="true" />
+            </button>
             {isSidebarCollapsed && (
               <button 
                 onClick={() => setIsSidebarCollapsed(false)}
@@ -573,40 +710,72 @@ export default function App() {
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-widest">
-              Swapno Marketing Team • {state.businessSetup.name}
+            <span className="text-sm font-semibold text-neutral-200">
+              {state.businessSetup.name}
             </span>
           </div>
           
           <div className="flex items-center gap-4 text-xs font-semibold">
             {metaConnected ? (
-              <span className="inline-flex items-center gap-1.5 text-orange-400 font-mono text-[10px] font-bold">
-                <Facebook className="w-3.5 h-3.5 fill-orange-500 text-orange-500" /> Active API Node: Connected
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-orange-300">
+                <Facebook className="h-4 w-4" aria-hidden="true" /> Social account connected
               </span>
             ) : (
-              <span className="text-neutral-500 text-[10px] font-mono">Platform Nodes Offline</span>
+              <span className="text-sm text-neutral-400">Social accounts not connected</span>
             )}
-            <span className="text-neutral-850">|</span>
-            <span className="text-[10px] font-mono text-neutral-400 uppercase font-bold bg-neutral-950 px-2.5 py-1 border border-neutral-800 rounded">
-              Sample Campaign
-            </span>
           </div>
         </header>
 
         {/* Workspaces Display Area */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
-          
+          {authenticatedWorkspaceId && workspaceSaveStatus !== 'idle' && (
+            <p
+              className={`mx-auto mb-4 max-w-4xl text-sm ${workspaceSaveStatus === 'error' ? 'text-amber-200' : 'text-neutral-400'}`}
+              role={workspaceSaveStatus === 'error' ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {workspaceSaveStatus === 'saving' && 'Saving your workspace…'}
+              {workspaceSaveStatus === 'saved' && 'Your changes are saved.'}
+              {workspaceSaveStatus === 'error' && 'Your changes could not be saved. Check your connection and try again.'}
+            </p>
+          )}
           {/* Tab 1: Command Center */}
           {activeTab === 'dashboard' && (
-            <CommandCenter
+            <>
+            {authenticatedWorkspaceId && (
+              <FirstUseChecklist
+                state={state}
+                onNavigate={setActiveTab}
+                onOpenLearning={() => setActiveTab('learn')}
+              />
+            )}
+            {authenticatedWorkspaceId ? (
+              <MarketingAdviser
+                state={state}
+                isSample={false}
+                onAskPrompt={prompt => setAdviserPromptRequest({ id: Date.now(), prompt })}
+                onNavigate={setActiveTab}
+              />
+            ) : (
+              <CommandCenter
+                state={state}
+                onNavigate={setActiveTab}
+                onApprovePost={handleToggleApprovePost}
+                onPublishNow={handlePublishNow}
+                onRunPlanning={handleRunPlanning}
+                onRunResearch={handleRunResearch}
+                metaConnected={metaConnected}
+              />
+            )}
+            </>
+          )}
+
+          {activeTab === 'adviser' && (
+            <MarketingAdviser
               state={state}
+              isSample={!authenticatedWorkspaceId}
+              onAskPrompt={prompt => setAdviserPromptRequest({ id: Date.now(), prompt })}
               onNavigate={setActiveTab}
-              onApprovePost={handleToggleApprovePost}
-              onPublishNow={handlePublishNow}
-              onRunPlanning={handleRunPlanning}
-              onRunResearch={handleRunResearch}
-              metaConnected={metaConnected}
             />
           )}
 
@@ -634,6 +803,13 @@ export default function App() {
 
           {/* Tab 4: Growth Analytics */}
           {activeTab === 'analytics' && (
+            authenticatedWorkspaceId ? (
+              <section className="mx-auto max-w-3xl rounded-2xl border border-neutral-800 bg-neutral-950 p-6" aria-labelledby="analytics-title">
+                <h1 id="analytics-title" className="text-xl font-bold text-white">Analytics</h1>
+                <p className="mt-2 text-sm leading-6 text-neutral-300">Social account insights are not connected, so there are no verified results to show yet. Your saved workspace data is unchanged.</p>
+                <button type="button" onClick={() => setActiveTab('connections')} className="mt-4 min-h-11 rounded-lg bg-[#FF4F00] px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-[#FF7933] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD400]">View connection status</button>
+              </section>
+            ) : (
             <div className="space-y-6">
               <div className="flex justify-between items-center bg-neutral-950 p-6 border border-neutral-800 rounded-2xl">
                 <div>
@@ -710,6 +886,14 @@ export default function App() {
                 </div>
               </div>
             </div>
+            )
+          )}
+
+          {activeTab === 'connections' && (
+            <section className="mx-auto max-w-3xl rounded-2xl border border-neutral-800 bg-neutral-950 p-6" aria-labelledby="connections-title">
+              <h1 id="connections-title" className="text-xl font-bold text-white">Social Connections</h1>
+              <p className="mt-2 text-sm leading-6 text-neutral-300">Connecting a social account may allow approved publishing or access to insights, depending on its permissions. SWAPNO AI does not currently offer a live connection. No account was connected and no permissions were requested.</p>
+            </section>
           )}
 
           {/* Tab 5: Knowledge Vault */}
@@ -917,112 +1101,170 @@ export default function App() {
             <div className="space-y-6 max-w-4xl mx-auto">
               <div className="flex justify-between items-center bg-neutral-950 p-6 border border-neutral-800 rounded-2xl">
                 <div>
-                  <h1 className="text-xl font-black text-white font-display uppercase tracking-tight">Brand Profile Coordinates</h1>
-                  <p className="text-xs text-neutral-400 mt-1">Configure your foundational brand variables, which behave as the "single source of truth" for all AI decisions.</p>
+                  <h1 className="text-xl font-bold text-white font-display">Business Profile</h1>
+                  <p className="text-sm text-neutral-300 mt-2">Tell SWAPNO AI what your business offers and who you want to reach. You can skip details and add them later.</p>
                 </div>
               </div>
 
               {/* Editable Profile Settings */}
               <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
                 <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
-                  <span className="text-[10px] font-bold tracking-widest uppercase text-neutral-400 font-mono">Configure Brand coordinates</span>
-                  <span className="text-orange-500 font-mono text-[9px] font-bold uppercase">Profile Save</span>
+                  <span className="text-sm font-semibold text-neutral-100">Business details</span>
+                  <span className="text-xs text-neutral-400">Changes save automatically</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-semibold text-neutral-300">
-                  <div className="space-y-1">
-                    <label className="text-[9px] text-neutral-500 font-bold uppercase font-mono block">Business Name</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm font-medium text-neutral-200">
+                  <div className="space-y-2">
+                    <label className="block" htmlFor="business-name">Business name</label>
                     <input
+                      id="business-name"
                       type="text"
                       value={state.businessSetup.name}
                       onChange={e => {
                         const setup = { ...state.businessSetup, name: e.target.value };
-                        setState({ ...state, businessSetup: setup });
+                        setState({ ...state, businessSetup: setup, businessBrain: { ...state.businessBrain, synced: false } });
                       }}
-                      className="w-full p-2.5 bg-black border border-neutral-800 rounded-lg text-white outline-none focus:border-orange-500"
+                      placeholder="For example, Riverbend Bakery"
+                      className="w-full min-h-11 p-2.5 bg-black border border-neutral-700 rounded-lg text-white outline-none focus:border-[#FF4F00]"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[9px] text-neutral-500 font-bold uppercase font-mono block">Industry Category</label>
+                  <div className="space-y-2">
+                    <label className="block" htmlFor="business-industry">What does your business do?</label>
                     <input
+                      id="business-industry"
                       type="text"
                       value={state.businessSetup.industry}
                       onChange={e => {
                         const setup = { ...state.businessSetup, industry: e.target.value };
-                        setState({ ...state, businessSetup: setup });
+                        setState({ ...state, businessSetup: setup, businessBrain: { ...state.businessBrain, synced: false } });
                       }}
-                      className="w-full p-2.5 bg-black border border-neutral-800 rounded-lg text-white outline-none focus:border-orange-500"
+                      placeholder="For example, bakery or home repair"
+                      className="w-full min-h-11 p-2.5 bg-black border border-neutral-700 rounded-lg text-white outline-none focus:border-[#FF4F00]"
                     />
                   </div>
 
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-[9px] text-neutral-500 font-bold uppercase font-mono block">Target Audience Demographics</label>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="block" htmlFor="business-audience">Who are your customers?</label>
                     <input
+                      id="business-audience"
                       type="text"
                       value={state.businessSetup.targetAudience}
                       onChange={e => {
                         const setup = { ...state.businessSetup, targetAudience: e.target.value };
-                        setState({ ...state, businessSetup: setup });
+                        setState({ ...state, businessSetup: setup, businessBrain: { ...state.businessBrain, synced: false } });
                       }}
-                      className="w-full p-2.5 bg-black border border-neutral-800 rounded-lg text-white outline-none focus:border-orange-500"
+                      placeholder="For example, nearby families looking for fresh bread"
+                      className="w-full min-h-11 p-2.5 bg-black border border-neutral-700 rounded-lg text-white outline-none focus:border-[#FF4F00]"
                     />
                   </div>
 
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-[9px] text-neutral-500 font-bold uppercase font-mono block">Brand Mission / Description</label>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="block" htmlFor="business-description">What do you offer?</label>
                     <textarea
+                      id="business-description"
                       value={state.businessSetup.description}
                       onChange={e => {
                         const setup = { ...state.businessSetup, description: e.target.value };
-                        setState({ ...state, businessSetup: setup });
+                        setState({ ...state, businessSetup: setup, businessBrain: { ...state.businessBrain, synced: false } });
                       }}
-                      className="w-full h-24 p-2.5 bg-black border border-neutral-800 rounded-lg text-white outline-none focus:border-orange-500 leading-normal"
+                      placeholder="Describe your products or services. You can leave this blank for now."
+                      className="w-full min-h-28 p-2.5 bg-black border border-neutral-700 rounded-lg text-white outline-none focus:border-[#FF4F00] leading-normal"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[9px] text-neutral-500 font-bold uppercase font-mono block">Writing Voice / Tone</label>
+                  <div className="space-y-2">
+                    <label className="block" htmlFor="business-products">Products or services <span className="font-normal text-neutral-400">(optional)</span></label>
+                    <textarea
+                      id="business-products"
+                      value={state.businessSetup.products || ''}
+                      onChange={e => setState({
+                        ...state,
+                        businessSetup: { ...state.businessSetup, products: e.target.value },
+                        businessBrain: { ...state.businessBrain, synced: false }
+                      })}
+                      placeholder="For example, custom cakes and baking classes"
+                      className="w-full min-h-24 p-2.5 bg-black border border-neutral-700 rounded-lg text-white outline-none focus:border-[#FF4F00] leading-normal"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block" htmlFor="business-goals">What would you like to achieve? <span className="font-normal text-neutral-400">(optional)</span></label>
+                    <textarea
+                      id="business-goals"
+                      value={state.businessSetup.goals || ''}
+                      onChange={e => setState({
+                        ...state,
+                        businessSetup: { ...state.businessSetup, goals: e.target.value },
+                        businessBrain: { ...state.businessBrain, synced: false }
+                      })}
+                      placeholder="For example, reach more local customers"
+                      className="w-full min-h-24 p-2.5 bg-black border border-neutral-700 rounded-lg text-white outline-none focus:border-[#FF4F00] leading-normal"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block" htmlFor="business-tone">How should your writing sound? <span className="font-normal text-neutral-400">(optional)</span></label>
                     <input
+                      id="business-tone"
                       type="text"
                       value={state.businessSetup.tone}
                       onChange={e => {
                         const setup = { ...state.businessSetup, tone: e.target.value };
-                        setState({ ...state, businessSetup: setup });
+                        setState({ ...state, businessSetup: setup, businessBrain: { ...state.businessBrain, synced: false } });
                       }}
-                      className="w-full p-2.5 bg-black border border-neutral-800 rounded-lg text-white outline-none focus:border-orange-500"
+                      placeholder="For example, warm and straightforward"
+                      className="w-full min-h-11 p-2.5 bg-black border border-neutral-700 rounded-lg text-white outline-none focus:border-[#FF4F00]"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[9px] text-neutral-500 font-bold uppercase font-mono block">Core Brand Pitch</label>
+                  <div className="space-y-2">
+                    <label className="block" htmlFor="business-brain-summary">How would you describe your business?</label>
                     <input
+                      id="business-brain-summary"
                       type="text"
                       value={state.businessBrain.elevatorPitch}
                       onChange={e => {
-                        const brain = { ...state.businessBrain, elevatorPitch: e.target.value };
+                        const brain = { ...state.businessBrain, elevatorPitch: e.target.value, synced: false };
                         setState({ ...state, businessBrain: brain });
                       }}
-                      className="w-full p-2.5 bg-black border border-neutral-800 rounded-lg text-white outline-none focus:border-orange-500"
+                      placeholder="Add a short summary in your own words"
+                      className="w-full min-h-11 p-2.5 bg-black border border-neutral-700 rounded-lg text-white outline-none focus:border-[#FF4F00]"
                     />
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center pt-4 border-t border-neutral-800">
-                  <span className="text-[10px] font-mono text-neutral-500 leading-none">Parameters sync: AUTOMATIC ON INPUT</span>
+                <div className="flex flex-col gap-3 border-t border-neutral-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-neutral-300" role="status">
+                    {state.businessBrain.synced
+                      ? 'You reviewed and approved this business summary.'
+                      : 'Review your details before marking this summary as approved.'}
+                  </p>
                   <button
+                    type="button"
+                    disabled={state.businessBrain.synced}
                     onClick={() => {
-                      addMemoryNode("Business profile parameters updated and synchronized.", "setup");
-                      alert("Brand Coordinates successfully flushed to the AI Gateway database.");
+                      setState({
+                        ...state,
+                        businessBrain: { ...state.businessBrain, synced: true }
+                      });
                     }}
-                    className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-md shadow-orange-600/15"
+                    className="min-h-11 rounded-lg bg-[#FF4F00] px-4 py-2 text-sm font-semibold text-neutral-950 transition-colors hover:bg-[#FF7933] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD400]"
                   >
-                    Sync Coordinates Map
+                    {state.businessBrain.synced ? 'Summary approved' : 'Mark summary as approved'}
                   </button>
                 </div>
               </div>
 
-              {/* Brand Asset Library relocated here */}
+              {authenticatedWorkspaceId ? (
+                <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-6" aria-labelledby="assets-unavailable-title">
+                  <h2 id="assets-unavailable-title" className="text-lg font-semibold text-white">Brand images</h2>
+                  <p className="mt-2 text-sm leading-6 text-neutral-300">
+                    Saving and managing your brand images is not available yet. Sample images are not shown in your account.
+                  </p>
+                </section>
+              ) : (
+              /* Brand Asset Library relocated here */
               <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
                 <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
                   <div>
@@ -1116,11 +1358,30 @@ export default function App() {
                   ))}
                 </div>
               </div>
+              )}
             </div>
           )}
 
           {/* Tab 8: System Settings (Gateway flow visualization and key configurations) */}
           {activeTab === 'settings' && (
+            authenticatedWorkspaceId ? (
+              <section className="mx-auto max-w-3xl space-y-4 rounded-2xl border border-neutral-800 bg-neutral-950 p-6" aria-labelledby="workspace-settings-title">
+                <h1 id="workspace-settings-title" className="text-xl font-bold text-white">Workspace settings</h1>
+                <p className="text-sm leading-6 text-neutral-300">
+                  Your workspace is saved to the current local account store. Account AI, social connections, and publishing are not connected yet.
+                </p>
+                <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-4 text-sm leading-6 text-amber-100">
+                  Do not add provider passwords or API keys here. SWAPNO AI will not ask for provider credentials in this workspace.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('trial')}
+                  className="min-h-11 rounded-lg bg-[#FF4F00] px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-[#FF7933] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD400]"
+                >
+                  View trial and usage
+                </button>
+              </section>
+            ) : (
             <div className="space-y-6 max-w-4xl mx-auto">
               <div className="flex justify-between items-center bg-neutral-950 p-6 border border-neutral-800 rounded-2xl">
                 <div>
@@ -1180,6 +1441,7 @@ export default function App() {
                 </div>
               </div>
             </div>
+            )
           )}
 
         </div>
@@ -1188,20 +1450,39 @@ export default function App() {
         <FloatingAI
           state={state}
           activeTab={activeTab}
+          isSample={!authenticatedWorkspaceId}
+          promptRequest={adviserPromptRequest}
+        />
+        <GuidedLearning
+          state={state}
+          activeTab={activeTab}
+          isAccountWorkspace={Boolean(authenticatedWorkspaceId)}
+          trial={trialSnapshot}
+          trialLoading={trialLoading}
+          supportContactUrl={trialSnapshot?.supportContactUrl}
+          onNavigate={setActiveTab}
+          onSaveState={handleSaveState}
         />
 
         {/* Global Footer (High Density Theme) */}
         <footer className="h-10 bg-neutral-950 border-t border-neutral-900 px-6 flex items-center justify-between text-[10px] font-semibold text-neutral-500 flex-shrink-0 font-mono">
-          <div className="flex gap-4 items-center">
-            <span className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div> Public Demo
-            </span>
-            <span className="text-neutral-800">|</span>
-            <span className="uppercase text-neutral-600 font-bold">Active Workspace Cores: {currentWorkspace === 'A' ? 'SaaS' : 'Artisanal Dining'}</span>
-          </div>
-          <div>
-            Swapno Autonomous AI OS © 2026
-          </div>
+          {authenticatedWorkspaceId ? (
+            <>
+              <span>Private workspace</span>
+              <span>SWAPNO AI by SWAPNO TECH</span>
+            </>
+          ) : (
+            <>
+              <div className="flex gap-4 items-center">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true"></span> Public Demo
+                </span>
+                <span className="hidden text-neutral-800 sm:inline">|</span>
+                <span className="hidden uppercase text-neutral-600 font-bold sm:inline">Sample data only</span>
+              </div>
+              <span>SWAPNO AI by SWAPNO TECH</span>
+            </>
+          )}
         </footer>
 
       </main>

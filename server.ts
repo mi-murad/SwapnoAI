@@ -3,8 +3,10 @@ import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
+import rateLimit from "express-rate-limit";
 import { authRouter } from "./src/server/routes/authRoutes";
 import { workspaceRouter } from "./src/server/routes/workspaceRoutes";
+import { aiProviderRouter } from "./src/server/routes/aiProviderRoutes";
 import { db } from "./src/server/db/database";
 import { authService } from "./src/server/auth/authService";
 import { requireAuth } from "./src/server/middleware/authMiddleware";
@@ -18,15 +20,82 @@ const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 const DB_FILE = path.join(process.cwd(), "db.json");
 const isPublicDemo = process.env.NODE_ENV === "production" || process.env.PUBLIC_DEMO_MODE === "true";
+const isProduction = process.env.NODE_ENV === "production";
+const configuredOrigins = process.env.FRONTEND_ORIGINS
+  ?.split(",")
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const allowedOrigins = configuredOrigins ?? (isProduction ? [] : [
+  "http://localhost:3000",
+  "http://localhost:5000",
+  "http://localhost:5173"
+]);
+
+const apiRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: { code: "RATE_LIMIT_EXCEEDED", message: "Too many API requests. Try again later." }
+  }
+});
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: { code: "AUTH_RATE_LIMIT_EXCEEDED", message: "Too many authentication attempts. Try again later." }
+  }
+});
+const aiRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: { code: "AI_RATE_LIMIT_EXCEEDED", message: "AI request limit reached. Try again shortly." }
+  }
+});
 
 // Middleware
-app.use(express.json({ limit: '10mb' }));
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS) || 0);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({
+      success: false,
+      error: { code: "ORIGIN_NOT_ALLOWED", message: "This application origin is not allowed." }
+    });
+  }
+
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Workspace-ID");
+  }
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(origin ? 204 : 403);
+  }
+  next();
+});
+app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", mode: isPublicDemo ? "public-demo" : "development" });
 });
 
+app.use("/api", apiRateLimit);
+app.use("/api/v1/auth", authRateLimit);
+app.use(["/api/ai", "/api/v1/ai"], aiRateLimit);
 app.use("/api", (req, res, next) => {
   if (isPublicDemo) {
     return res.status(404).json({
@@ -40,6 +109,7 @@ app.use("/api", (req, res, next) => {
 // Mount SaaS v1 Multi-Tenant APIs
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/workspaces", workspaceRouter);
+app.use("/api/v1/ai/providers", aiProviderRouter);
 app.use(["/api/state", "/api/reset"], (_req, res) => {
   return res.status(410).json({
     success: false,

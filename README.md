@@ -1,64 +1,52 @@
 # SWAPNO AI
 
-SWAPNO AI is a React/Vite frontend served by an Express application.
+SWAPNO AI is an early-stage marketing-partner product for small businesses. The repository currently contains a fictional sample experience and a separately implemented local account API. It is **not a production SaaS or a live AI/publishing product**.
+
+## Technology
+
+- React 19, TypeScript, Vite 6, Tailwind CSS 4
+- Express 4 API and Node.js 24 runtime
+- Local JSON persistence for development accounts; Supabase PostgreSQL/Auth are planned, not active
+- Server-side Gemini/Groq/OpenRouter connection-test adapters; no production generation router
 
 ## Run locally
 
-**Prerequisite:** Node.js 24 LTS (see `.node-version`) and npm.
+Prerequisite: Node.js 24.x and npm. Windows PowerShell:
 
 ```powershell
 npm ci
 npm run dev
 ```
 
-The development server listens on port `5000`.
+Open `http://localhost:5000`. The Express development process serves the app and Vite middleware. Local development APIs are enabled by default; local data is written to ignored JSON files. Use test data only.
 
-## Build and run
+## Check and build
 
 ```powershell
+npm run lint
+npm run test:providers
 npm run build
 npm start
 ```
 
-Set `PORT` to override the default server port. The production server serves the
-compiled frontend from `dist/` and exposes `/healthz` for hosting health checks.
+The production server listens on `PORT` (default 5000), serves `dist/`, and exposes `GET /healthz`. `npm run lint` is TypeScript checking (`tsc --noEmit`). See [DEVELOPMENT-SETUP.md](docs/DEVELOPMENT-SETUP.md) for all test commands and limitations.
 
-## Public preview deployment
+## Deployment reality
 
-### Vercel
+- Vercel configuration builds and publishes the static frontend only.
+- Render configuration builds Express but sets `PUBLIC_DEMO_MODE=true`; in addition, all `NODE_ENV=production` API requests are blocked by the current server guard.
+- No staging deployment URL is verified. Do not connect customer accounts or enter customer data.
+- The frontend currently has a hard-coded sample/demo switch. API authentication, database persistence, and provider generation are not available in the public deployment.
 
-The root `vercel.json` configures Vercel to build and publish only the Vite
-frontend. Set the Vercel project root to the repository root and use the Vite
-framework preset; the build command and output directory are pinned in
-`vercel.json`. `package.json` pins the build to Node.js 24.x.
+See [DEPLOYMENT-GUIDE.md](docs/DEPLOYMENT-GUIDE.md), [PROJECT-STATUS.md](PROJECT-STATUS.md), and the [staging release report](docs/release/STAGING-RELEASE-REPORT.md).
 
-This is a static, sample-only preview. Vercel does not run the Express server,
-and the production demo intentionally disables backend APIs, authentication,
-and AI calls. No environment variables are required for this preview. Do not
-use this deployment for customer data or as the production SaaS backend.
+## Documentation
 
-### Render
+- [Project overview](docs/PROJECT-OVERVIEW.md) and [architecture](docs/ARCHITECTURE.md)
+- [Environment variable reference](docs/ENVIRONMENT-VARIABLES.md)
+- [Database and tenant status](docs/DATABASE-AND-TENANCY.md)
+- [Security and privacy](docs/SECURITY-AND-PRIVACY.md)
+- [Product roadmap](docs/PRODUCT-ROADMAP.md)
+- [Claude Code instructions](CLAUDE.md) and [handoff](docs/handoff/CLAUDE-CODE-HANDOFF.md)
 
-The root `render.yaml` configures a free Render web service. Create a Render
-Blueprint from this GitHub repository and select the free plan; no paid services
-are required for the preview.
-
-The public deployment is intentionally a **sample-only demo**:
-
-- It uses fictional, bundled example workspaces.
-- Changes remain in browser memory and are lost on refresh.
-- Backend APIs are disabled in production, including authentication, shared
-  state, and AI routes.
-- AI output, analytics, publishing, and social integrations are not live.
-- Do not add customer data, API keys, or database files to the public repository.
-
-Render's free web services use an ephemeral filesystem and can spin down while
-idle. This configuration is suitable for previewing the interface only, not for
-storing customer data or operating a production SaaS.
-
-## Environment variables
-
-`GEMINI_API_KEY` is read by the server for AI calls when those routes are enabled.
-`JWT_SECRET` is required for authenticated production API deployments. Neither
-value belongs in the browser or in Git. The public preview does not call either
-service.
+The blueprint under `docs/foundation/` includes concept and business-model proposals that are not active features. Its illustrative pricing is not approved or offered.

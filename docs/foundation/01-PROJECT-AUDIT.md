@@ -5,6 +5,8 @@
 **Auditor:** Senior SaaS Architect & Technical Auditor  
 **Status:** Complete & Verified Against Source Code  
 
+> Historical audit snapshot. Later auth/workspace scaffolding and the Vercel frontend-only setup changed the implementation. For current verified findings, see [14-IMPLEMENTATION-AUDIT.md](./14-IMPLEMENTATION-AUDIT.md).
+
 ---
 
 ## 1. Executive Summary

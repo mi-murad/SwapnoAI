@@ -3,7 +3,7 @@
 **Phase:** Foundation Sprint (Phases 1 & 2)  
 **Date:** November 2026  
 **Auditor / Chief Architect:** Senior Full-Stack Software & Systems Architect  
-**Status:** Approved Technical Architecture Specification  
+**Status:** Target architecture proposal, not current runtime. The implemented architecture and deployment blockers are documented in `docs/ARCHITECTURE.md` and `docs/DEPLOYMENT-GUIDE.md`.
 
 ---
 

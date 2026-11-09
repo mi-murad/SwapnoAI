@@ -3,7 +3,7 @@
 **Phase:** Foundation Sprint (Phases 1 & 2)  
 **Date:** November 2026  
 **Auditor / UX Architect:** Senior SaaS Product Designer & UI Architect  
-**Status:** Approved UX Specification  
+**Status:** Historical target UX specification; implementation gaps are tracked in `docs/UX-AND-ONBOARDING.md`.
 
 ---
 
@@ -22,15 +22,13 @@ graph LR
     subgraph Themes ["Theme Architecture"]
         Light["Executive Light (Default)<br/>Clean, spacious, warm neutrals (#FAFAFA, #FFFFFF)<br/>Soft zinc borders (#E4E4E7)<br/>Crisp typography & subtle shadows"]
         Dark["Stealth Dark (User Choice)<br/>Deep charcoal & obsidian (#09090B, #18181B)<br/>Muted borders (#27272A)<br/>Controlled glow accents"]
-        BrandAccent["Primary Accent: SWAPNO Orange (#EA580C / #F97316)<br/>Warning / Error: Crimson (#EF4444)<br/>Success: Emerald (#10B981)"]
+        BrandAccent["User-provided palette: #111111, #FFFFFF, #FF4F00, #FFD400<br/>Supporting neutrals and accessible status colors"]
     end
 ```
 
 ### 1.3 Design Standards & Foundations
 - **Typography:**
-  - *Headings & Display:* **Space Grotesk** (geometric, confident, modern).
-  - *Body & UI:* **Inter** (clean, neutral, highly legible at small sizes).
-  - *Data, Badges & Timestamps:* **JetBrains Mono** (precision telemetry feel).
+  - Existing implementation uses Space Grotesk, Inter, and JetBrains Mono; official font names have not been verified from the brand reference.
 - **Spacing Scale:** Standard 4px / 8px grid (`p-2`, `p-4`, `p-6`, `p-8`). Maximum content container width: 1440px.
 - **Responsive Breakpoints:**
   - *Desktop (1200px+):* Full dual-pane view, expanded sidebar (w-64), visible calendar grid.

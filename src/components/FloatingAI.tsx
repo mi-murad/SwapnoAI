@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Send, X, Sparkles, ChevronUp, ChevronDown, Check } from 'lucide-react';
+import { MessageSquare, Send, X, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import { SwapnoAppState } from '../types';
+import { apiFetch } from '../api';
 
 interface FloatingAIProps {
   state: SwapnoAppState;
   activeTab: string;
+  isSample: boolean;
+  promptRequest?: { id: number; prompt: string } | null;
 }
 
-export function FloatingAI({ state, activeTab }: FloatingAIProps) {
+export function FloatingAI({ state, activeTab, isSample, promptRequest }: FloatingAIProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<Array<{
@@ -20,52 +23,21 @@ export function FloatingAI({ state, activeTab }: FloatingAIProps) {
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Map active tab to an internal specialist department
-  const getDepartment = (tab: string) => {
-    switch (tab) {
-      case 'dashboard':
-        return { name: 'Growth Marketer', avatar: '📈', role: 'analyzing channel growth & high-priority performance' };
-      case 'content':
-        return { name: 'Content Strategist', avatar: '✍️', role: 'writing copy & optimizing monthly editorial content' };
-      case 'strategy':
-        return { name: 'Marketing Strategist', avatar: '🎯', role: 'sculpting content pillars & brand positioning' };
-      case 'research':
-        return { name: 'SEO & Trend Analyst', avatar: '🔍', role: 'indexing keyword momentum & competitor activity' };
-      case 'analytics':
-        return { name: 'Performance Analyst', avatar: '📊', role: 'auditing impressions, clicks, & engagement ROI' };
-      case 'reports':
-        return { name: 'Brand Consultant', avatar: '📋', role: 'assembling CMO Executive Dossiers & briefs' };
-      case 'knowledge':
-        return { name: 'Creative Director', avatar: '🧠', role: 'managing brand guidelines & memory ledgers' };
-      case 'automation':
-        return { name: 'Social Media Manager', avatar: '⚡', role: 'configuring social channels & publish schedulers' };
-      case 'profile':
-        return { name: 'Onboarding Partner', avatar: '👔', role: 'forming the Business Brain core coordinates' };
-      default:
-        return { name: 'Marketing Strategist', avatar: '✨', role: 'aligning operations' };
-    }
+  const activeDept = {
+    name: 'Marketing Adviser'
   };
-
-  const activeDept = getDepartment(activeTab);
 
   // Set initial warm greeting based on current tab context
   useEffect(() => {
-    const greeting = `Hello! I am **Swapno AI**, your unified Marketing Partner. 
+    const greeting = `Hello. I’m your Marketing Adviser${state.businessSetup.name ? ` for ${state.businessSetup.name}` : ''}. What would you like to work on today?`;
+    setChatHistory(previous => previous.length ? previous : [{ sender: 'agent', text: greeting }]);
+  }, []);
 
-I behave as an experienced Digital Marketing Team. Right now, on the **${activeTab.toUpperCase()}** screen, I am consulting with our **${activeDept.name}** who is currently *${activeDept.role}* for **${state.businessSetup.name || 'your business'}**.
-
-How can I help you optimize our operations today?`;
-
-    setChatHistory([
-      {
-        sender: 'agent',
-        text: greeting,
-        reasoning: `Selected specialized agent '${activeDept.name}' for ${activeTab} context.`,
-        confidence: '100%',
-        businessImpact: 'Aligns AI reasoning with active workspace task flow.'
-      }
-    ]);
-  }, [activeTab, state.businessSetup.name]);
+  useEffect(() => {
+    if (!promptRequest) return;
+    setMessage(promptRequest.prompt);
+    setIsOpen(true);
+  }, [promptRequest]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -79,10 +51,17 @@ How can I help you optimize our operations today?`;
     const userText = message;
     setMessage('');
     setChatHistory(prev => [...prev, { sender: 'user', text: userText }]);
+    if (!isSample) {
+      setChatHistory(prev => [...prev, {
+        sender: 'agent',
+        text: 'Your request was not sent. Account AI is not connected yet, so no AI action was used. You can update your business profile or save a draft in the meantime.'
+      }]);
+      return;
+    }
     setLoading(true);
 
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await apiFetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -103,31 +82,11 @@ How can I help you optimize our operations today?`;
         businessImpact: data.businessImpact
       }]);
     } catch (err: any) {
-      console.warn("Falling back to simulated partner recommendation:", err);
-      // Fallback simulation matching the workspace context
-      setTimeout(() => {
-        let simulatedReply = '';
-        let simulatedImpact = '';
-
-        if (activeTab === 'dashboard') {
-          simulatedReply = `Here is our strategic performance review for **${state.businessSetup.name}**:\n\n1. **Increase LinkedIn volume**: Our organic posting frequency is trailing competitors by 20%. Suggest releasing 1 of our planned posts tonight.\n2. **Optimize Hashtags**: Swap out low-volume hashtags for trend-momentum tags like \`#AutonomousWorkflows\` to boost visibility.`;
-          simulatedImpact = "Organic impressions list: +15% lift in 7 days.";
-        } else if (activeTab === 'content') {
-          simulatedReply = `I have audited your scheduled calendar queue. The post draft **"${state.contentPlan[0]?.title || 'Untitled Campaign'}"** looks robust, but could benefit from a clearer call-to-action.\n\nWould you like me to rewrite it with a focus on conversion?`;
-          simulatedImpact = "Click-Through-Rate: +2.5% increase on CTA link.";
-        } else {
-          simulatedReply = `I've analyzed the parameters on this page for **${state.businessSetup.name}**. Everything is synchronized and aligned with your brand guidelines. We should focus on publishing consistent content based on these exact specifications.`;
-          simulatedImpact = "Brand coherence: 100% compliant across channels.";
-        }
-
-        setChatHistory(prev => [...prev, {
-          sender: 'agent',
-          text: simulatedReply,
-          reasoning: "Public demo response based on sample workspace data; no AI provider was called.",
-          confidence: "Sample response",
-          businessImpact: "Illustrative only; not based on live data"
-        }]);
-      }, 800);
+      console.error('Sample adviser request failed.', err);
+      setChatHistory(prev => [...prev, {
+        sender: 'agent',
+        text: 'The sample adviser could not complete that request. No recommendation was created. Please try again shortly.'
+      }]);
     } finally {
       setLoading(false);
     }
@@ -136,15 +95,40 @@ How can I help you optimize our operations today?`;
   const getQuickActions = () => {
     switch (activeTab) {
       case 'dashboard':
-        return ["Explain Health Score", "Optimize Priorities", "Next growth steps?"];
+        return [
+          'Help me understand my competitors.',
+          'Create a marketing strategy for my business.',
+          'Plan my social media content for this week.',
+          'Give me ideas to increase customer engagement.'
+        ];
       case 'content':
-        return ["Improve captions", "Suggest hashtags", "Review mockups"];
+        return [
+          'Plan my social media content for this week.',
+          'Help me improve this post.',
+          'Create a marketing strategy for my business.',
+          'Give me ideas to increase customer engagement.'
+        ];
       case 'strategy':
-        return ["Review core pillars", "Brainstorm themes"];
+        return [
+          'Create a marketing strategy for my business.',
+          'Help me understand my competitors.',
+          'Identify my target audience.',
+          'Plan my social media content for this week.'
+        ];
       case 'research':
-        return ["Analyze competitors", "Check trends"];
+        return [
+          'Help me understand my competitors.',
+          'Identify my target audience.',
+          'Give me ideas to increase customer engagement.',
+          'Create a marketing strategy for my business.'
+        ];
       default:
-        return ["Review current page", "Suggest actions"];
+        return [
+          'Help me understand my competitors.',
+          'Create a marketing strategy for my business.',
+          'Plan my social media content for this week.',
+          'Give me ideas to increase customer engagement.'
+        ];
     }
   };
 
@@ -179,28 +163,27 @@ How can I help you optimize our operations today?`;
           {/* Header */}
           <div className="bg-neutral-950 border-b border-neutral-900 p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-orange-600 rounded-xl flex items-center justify-center font-bold text-white shadow-md text-base">
-                {activeDept.avatar}
+              <div className="w-9 h-9 bg-[#FF4F00] rounded-xl flex items-center justify-center text-neutral-950 shadow-md">
+                <MessageSquare className="h-4 w-4" aria-hidden="true" />
               </div>
               <div>
                 <h3 className="text-xs font-black tracking-widest text-white uppercase font-display flex items-center gap-1">
-                  SWAPNO AI <Sparkles className="w-3 h-3 text-orange-500 fill-orange-500" />
+                  Your Marketing Adviser
                 </h3>
-                <p className="text-[9px] text-orange-400 font-mono flex items-center gap-1 font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Active: {activeDept.name} Specialist
+                <p className="text-[11px] text-neutral-300">
+                  {isSample ? 'Sample responses only' : 'AI is not connected for this workspace'}
                 </p>
               </div>
             </div>
-            <span className="text-[8px] font-mono font-bold bg-neutral-900 px-2 py-0.5 rounded text-neutral-400 border border-neutral-800 uppercase tracking-wider">Marketing Partner</span>
+            <span className="text-[10px] font-semibold bg-neutral-900 px-2 py-1 rounded text-neutral-300 border border-neutral-800">Marketing Adviser</span>
           </div>
 
           {/* Conversation Thread */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-neutral-950/45">
             {chatHistory.map((chat, idx) => (
               <div key={idx} className={`flex flex-col ${chat.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                <span className="text-[8px] uppercase tracking-widest font-bold text-neutral-500 mb-1 font-mono">
-                  {chat.sender === 'user' ? 'YOU' : `Swapno AI (${activeDept.name})`}
+                <span className="text-[11px] uppercase tracking-wide font-semibold text-neutral-400 mb-1">
+                {chat.sender === 'user' ? 'You' : 'Marketing Adviser'}
                 </span>
                 
                 <div className={`p-3 rounded-2xl text-xs leading-relaxed max-w-[88%] whitespace-pre-wrap ${

@@ -14,6 +14,9 @@ export interface WorkspaceRecord {
   slug: string;
   ownerId: string;
   planTier: 'starter' | 'growth' | 'pro' | 'agency';
+  trialStartedAt: string;
+  trialExpiresAt: string;
+  trialUsageCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +36,8 @@ export interface WorkspaceDataPayload {
     targetAudience: string;
     description: string;
     tone: string;
+    products?: string;
+    goals?: string;
     colors: string[];
     keywords: string[];
   };
@@ -105,6 +110,11 @@ export interface WorkspaceDataPayload {
     note: string;
   }>;
   currentStep: string;
+  learningProgress?: {
+    dismissed: boolean;
+    completedLessonIds: string[];
+    completedAt?: string;
+  };
 }
 
 export interface DatabaseState {

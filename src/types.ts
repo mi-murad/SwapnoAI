@@ -4,6 +4,8 @@ export interface BusinessSetup {
   targetAudience: string;
   description: string;
   tone: string;
+  products?: string;
+  goals?: string;
   colors: string[];
   keywords: string[];
 }
@@ -88,6 +90,30 @@ export interface MemoryLog {
   note: string;
 }
 
+export interface LearningProgress {
+  dismissed: boolean;
+  completedLessonIds: string[];
+  completedAt?: string;
+}
+
+export type TrialAction = 'adviser' | 'research' | 'strategy' | 'text_content';
+
+export interface TrialSnapshot {
+  status: 'active' | 'expired';
+  startedAt: string;
+  expiresAt: string;
+  serverNow: string;
+  remainingMilliseconds: number;
+  durationDays: number;
+  actionLimit: number;
+  actionsUsed: number;
+  actionsRemaining: number;
+  includedActions: TrialAction[];
+  cardRequired: false;
+  automaticCharge: false;
+  supportContactUrl?: string;
+}
+
 export interface SwapnoAppState {
   businessSetup: BusinessSetup;
   businessBrain: BusinessBrain;
@@ -97,4 +123,5 @@ export interface SwapnoAppState {
   analytics: AnalyticsMetric[];
   memoryLogs: MemoryLog[];
   currentStep: string;
+  learningProgress?: LearningProgress;
 }

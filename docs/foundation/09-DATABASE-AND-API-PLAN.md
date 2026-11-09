@@ -3,7 +3,7 @@
 **Phase:** Foundation Sprint (Phases 1 & 2)  
 **Date:** November 2026  
 **Auditor / Database Architect:** Senior Database & Backend Architect  
-**Status:** Approved DDL & API Specification  
+**Status:** Historical database/API proposal; it is not the active schema or a deployed database. See `docs/DATABASE-AND-TENANCY.md` for the migration currently drafted and its limitations.
 
 ---
 
@@ -76,8 +76,8 @@ CREATE TABLE brands (
     sub_industry VARCHAR(100),
     description TEXT,
     tone VARCHAR(100) DEFAULT 'Professional, Modern',
-    primary_color VARCHAR(10) DEFAULT '#EA580C',
-    secondary_color VARCHAR(10) DEFAULT '#171717',
+    primary_color VARCHAR(10) DEFAULT '#FF4F00',
+    secondary_color VARCHAR(10) DEFAULT '#111111',
     logo_url TEXT,
     website_url TEXT,
     language_mode VARCHAR(50) DEFAULT 'ENGLISH_ONLY',

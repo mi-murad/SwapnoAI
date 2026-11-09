@@ -37,6 +37,14 @@ async function runTenantIsolationTests() {
     assert(!!user1Res.token, 'User 1 received valid JWT session token');
     assert(!!user1Res.workspace.id, 'User 1 provisioned dedicated workspace');
     const ws1Id = user1Res.workspace.id;
+    const newWorkspaceState = db.getWorkspaceData(ws1Id);
+    const newWorkspaceTrial = db.getTrialSnapshot(ws1Id);
+    assert(newWorkspaceState?.businessSetup.products === '', 'New workspace products start blank');
+    assert(newWorkspaceState?.businessSetup.goals === '', 'New workspace goals start blank');
+    assert(newWorkspaceState?.strategy.channels.length === 0, 'New workspace strategy contains no sample channels');
+    assert(newWorkspaceTrial?.status === 'active', 'New workspace receives an active server-calculated trial');
+    assert(newWorkspaceTrial?.durationDays === 7, 'New workspace trial uses the configured seven-day default');
+    assert(newWorkspaceTrial?.cardRequired === false && newWorkspaceTrial.automaticCharge === false, 'Trial requires no card and does not auto-charge');
 
     // 2. Register User 2 (Dhaka Flower Tub)
     console.log('\nStep 2: Registering User 2 (Bob - Dhaka Flower Tub)...');
@@ -62,7 +70,9 @@ async function runTenantIsolationTests() {
       ...prev,
       businessSetup: {
         ...prev.businessSetup,
-        keywords: ['LuxurySilk', 'JamdaniHeritage', 'DhakaCouture']
+        keywords: ['LuxurySilk', 'JamdaniHeritage', 'DhakaCouture'],
+        products: 'Jamdani silk scarves',
+        goals: 'Reach more local customers'
       },
       businessBrain: {
         ...prev.businessBrain,
@@ -87,6 +97,11 @@ async function runTenantIsolationTests() {
       ws1Data?.memoryLogs.some(l => l.note.includes('Alice approved winter bridal')) === true,
       'User 1 workspace successfully stored custom memory log'
     );
+    assert(ws1Data?.businessSetup.products === 'Jamdani silk scarves', 'User 1 products are saved to their workspace');
+    assert(ws1Data?.businessSetup.goals === 'Reach more local customers', 'User 1 goals are saved to their workspace');
+
+    db.recordSuccessfulTrialAction(ws1Id, 'adviser');
+    assert(db.getTrialSnapshot(ws1Id)?.actionsUsed === 1, 'Successful workspace AI action increments server-side trial usage');
 
     // 4. Verify User 2 CANNOT see User 1's Data (Zero Leakage)
     console.log('\nStep 4: Testing Data Isolation between Workspaces...');
@@ -99,6 +114,9 @@ async function runTenantIsolationTests() {
       !ws2Data?.memoryLogs.some(l => l.note.includes('Alice approved winter bridal')),
       'User 2 workspace DOES NOT contain User 1 memory logs'
     );
+    assert(ws2Data?.businessSetup.products === '', 'User 2 workspace does not contain User 1 products');
+    assert(ws2Data?.businessSetup.goals === '', 'User 2 workspace does not contain User 1 goals');
+    assert(db.getTrialSnapshot(ws2Id)?.actionsUsed === 0, 'User 2 trial usage is separate from User 1');
 
     // 5. Verify Cross-Tenant Access Control (Server Authorization)
     console.log('\nStep 5: Verifying Server-Side Authorization Controls...');
@@ -139,7 +157,7 @@ async function runTenantIsolationTests() {
 
     console.log('\n====================================================');
     console.log(`TEST SUITE COMPLETE: ${passedTests}/${totalTests} TESTS PASSED`);
-    console.log('TENANT ISOLATION & PERSISTENCE VERIFIED 100% SUCCESSFUL');
+    console.log('Local JSON workspace isolation and persistence checks passed; PostgreSQL/RLS is not tested by this suite.');
     console.log('====================================================\n');
   } catch (err: any) {
     console.error('\nTEST SUITE FAILED:', err.message);

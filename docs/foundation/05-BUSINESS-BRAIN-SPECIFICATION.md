@@ -3,7 +3,7 @@
 **Phase:** Foundation Sprint (Phases 1 & 2)  
 **Date:** November 2026  
 **Auditor / AI Architect:** Senior AI Systems & Knowledge Architect  
-**Status:** Approved Business Brain Architecture  
+**Status:** Proposed Business Brain specification; the current local profile is partial and is not yet a production AI context service. See `docs/ARCHITECTURE.md`.
 
 ---
 

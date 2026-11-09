@@ -3,7 +3,9 @@
 **Phase:** Foundation Sprint (Phases 1 & 2)  
 **Date:** November 2026  
 **Auditor / Product Architect:** Senior SaaS Product Architect  
-**Status:** Approved Blueprint Specification  
+**Status:** Historical product concept; not the current implementation or an approved commercial offer. See `docs/PROJECT-OVERVIEW.md` and `docs/PRODUCT-ROADMAP.md` for current status.
+
+> **Implementation and commercial disclaimer:** This document describes an aspirational product. Proposed capabilities such as publishing, live analytics, billing, and AI generation are not implemented end-to-end. All plan prices and setup-service amounts below are unapproved planning examples and must not be presented as current pricing. The palette and logo must be verified against the official identity source before being called official.
 
 ---
 

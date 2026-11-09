@@ -3,7 +3,7 @@
 **Phase:** Foundation Sprint (Phases 1 & 2)  
 **Date:** November 2026  
 **Auditor / Engineering Lead:** Senior Full-Stack Engineering Manager & Architect  
-**Status:** Approved 10-Phase Implementation Roadmap  
+**Status:** Historical proposed roadmap, not an approved schedule. The current prioritized backlog is `docs/PRODUCT-ROADMAP.md`.
 
 ---
 

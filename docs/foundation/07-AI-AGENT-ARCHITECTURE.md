@@ -3,7 +3,7 @@
 **Phase:** Foundation Sprint (Phases 1 & 2)  
 **Date:** November 2026  
 **Auditor / AI Architect:** Senior AI Systems & LLM Architect  
-**Status:** Approved Agent Architecture Specification  
+**Status:** Target AI architecture proposal; no multi-agent orchestrator or production generation router is implemented. See `docs/AI-PROVIDER-MATRIX.md`.
 
 ---
 

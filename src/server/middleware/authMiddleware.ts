@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { authService, TokenPayload } from '../auth/authService';
 import { db } from '../db/database';
-import { WorkspaceRecord, WorkspaceMemberRecord } from '../types';
+import { WorkspaceRecord, WorkspaceMemberRecord, WorkspaceRole } from '../types';
 
 export interface AuthenticatedRequest extends Request {
   user?: TokenPayload;
@@ -78,4 +78,17 @@ export function requireWorkspace(req: AuthenticatedRequest, res: Response, next:
   req.workspace = workspace;
   req.membership = membership;
   next();
+}
+
+export function requireWorkspaceRole(...allowedRoles: WorkspaceRole[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.membership || !allowedRoles.includes(req.membership.role)) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN_WORKSPACE_ROLE', message: 'Your workspace role cannot perform this action.' }
+      });
+    }
+
+    next();
+  };
 }

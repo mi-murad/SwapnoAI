@@ -3,7 +3,7 @@
 **Phase:** Foundation Sprint (Phases 1 & 2)  
 **Date:** November 2026  
 **Auditor / Product Architect:** Senior SaaS Product Architect & UX Designer  
-**Status:** Approved Customer Journey Specification  
+**Status:** Target customer-journey proposal; implementation and acceptance gaps are tracked in `docs/UX-AND-NAVIGATION.md` and `docs/PROJECT-STATUS.md`.
 
 ---
 

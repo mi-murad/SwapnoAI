@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { DatabaseState, UserRecord, WorkspaceRecord, WorkspaceMemberRecord, WorkspaceDataPayload, WorkspaceRole } from '../types';
 import { workspaceAData } from '../../data/workspaceData';
+import { assertTrialActionAllowed, createTrialWindow, getTrialPolicy, getTrialSnapshot, TrialAction } from '../trial/trialService';
 
 const DB_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DB_DIR, 'swapno_multi_tenant_db.json');
@@ -44,10 +45,28 @@ export class DatabaseService {
     try {
       if (fs.existsSync(DB_FILE)) {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
-        return JSON.parse(raw);
+        const state = JSON.parse(raw) as DatabaseState;
+        const policy = getTrialPolicy();
+        for (const workspace of Object.values(state.workspaces || {})) {
+          if (!workspace.trialStartedAt || !workspace.trialExpiresAt) {
+            const start = new Date(workspace.createdAt);
+            const trialWindow = createTrialWindow(Number.isNaN(start.getTime()) ? new Date(0) : start, policy);
+            workspace.trialStartedAt = workspace.trialStartedAt || trialWindow.trialStartedAt;
+            workspace.trialExpiresAt = workspace.trialExpiresAt || trialWindow.trialExpiresAt;
+          }
+          if (!Number.isSafeInteger(workspace.trialUsageCount) || workspace.trialUsageCount < 0) {
+            workspace.trialUsageCount = 0;
+          }
+        }
+        state.users ||= {};
+        state.workspaces ||= {};
+        state.memberships ||= {};
+        state.workspaceData ||= {};
+        return state;
       }
-    } catch (err) {
-      console.error('[DatabaseService] Error reading database file, initializing default:', err);
+    } catch {
+      console.error('[DatabaseService] Failed to read the local database; the existing file was left unchanged.');
+      throw new Error('The local database could not be loaded. Its existing file was not overwritten.');
     }
 
     const defaultState: DatabaseState = {
@@ -62,13 +81,9 @@ export class DatabaseService {
   }
 
   private persistState(stateToSave: DatabaseState = this.state) {
-    try {
-      const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
-      fs.writeFileSync(tempFile, JSON.stringify(stateToSave, null, 2), 'utf-8');
-      fs.renameSync(tempFile, DB_FILE);
-    } catch (err) {
-      console.error('[DatabaseService] Failed to persist database state:', err);
-    }
+    const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
+    fs.writeFileSync(tempFile, JSON.stringify(stateToSave, null, 2), 'utf-8');
+    fs.renameSync(tempFile, DB_FILE);
   }
 
   // --- User Operations ---
@@ -107,15 +122,18 @@ export class DatabaseService {
   ): { workspace: WorkspaceRecord; member: WorkspaceMemberRecord } {
     const workspaceId = `ws_${crypto.randomUUID()}`;
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `workspace-${Date.now()}`;
+    const createdAt = new Date().toISOString();
 
     const workspace: WorkspaceRecord = {
       id: workspaceId,
       name: name.trim(),
       slug: `${slug}-${workspaceId.slice(3, 7)}`,
       ownerId,
-      planTier: 'growth',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      planTier: 'starter',
+      ...createTrialWindow(new Date(createdAt), getTrialPolicy()),
+      trialUsageCount: 0,
+      createdAt,
+      updatedAt: createdAt
     };
 
     const membershipId = `mem_${crypto.randomUUID()}`;
@@ -134,12 +152,14 @@ export class DatabaseService {
     const cleanState: WorkspaceDataPayload = {
       businessSetup: {
         name: initialSetup?.name || name,
-        industry: initialSetup?.industry || 'General Business',
-        targetAudience: initialSetup?.targetAudience || 'Target Audience',
-        description: initialSetup?.description || `Marketing coordinates for ${name}`,
-        tone: initialSetup?.tone || 'Professional, Modern',
-        colors: initialSetup?.colors || ['#EA580C', '#171717', '#F5F5F4'],
-        keywords: initialSetup?.keywords || ['Marketing', 'Growth', 'Business']
+        industry: initialSetup?.industry || '',
+        targetAudience: initialSetup?.targetAudience || '',
+        description: initialSetup?.description || '',
+        tone: initialSetup?.tone || '',
+        products: initialSetup?.products || '',
+        goals: initialSetup?.goals || '',
+        colors: initialSetup?.colors || ['#111111', '#FFFFFF', '#FF4F00', '#FFD400'],
+        keywords: initialSetup?.keywords || []
       },
       businessBrain: {
         elevatorPitch: '',
@@ -155,14 +175,9 @@ export class DatabaseService {
         approved: false
       },
       strategy: {
-        channels: [
-          { name: 'Facebook', frequency: '3 posts per week', focus: 'Community engagement and customer updates' },
-          { name: 'Instagram', frequency: '4 posts per week', focus: 'Visual showcases, reels, and product highlights' }
-        ],
-        pillars: ['Brand Narrative', 'Product Highlights', 'Customer Success', 'Behind the Craft'],
-        campaignThemes: [
-          { title: 'Launch Momentum', objective: 'Establish authentic local awareness', keyMessage: 'Discover what makes us unique.' }
-        ],
+        channels: [],
+        pillars: [],
+        campaignThemes: [],
         approved: false
       },
       contentPlan: [],
@@ -175,7 +190,11 @@ export class DatabaseService {
           note: `Workspace ${name} initialized for owner.`
         }
       ],
-      currentStep: 'dashboard'
+      currentStep: 'dashboard',
+      learningProgress: {
+        dismissed: false,
+        completedLessonIds: []
+      }
     };
 
     this.state.workspaceData[workspaceId] = cleanState;
@@ -198,6 +217,24 @@ export class DatabaseService {
     return this.state.workspaces[workspaceId] || null;
   }
 
+  public getTrialSnapshot(workspaceId: string) {
+    const workspace = this.getWorkspaceById(workspaceId);
+    if (!workspace) return null;
+    return getTrialSnapshot(workspace, getTrialPolicy());
+  }
+
+  public recordSuccessfulTrialAction(workspaceId: string, action: TrialAction) {
+    const workspace = this.getWorkspaceById(workspaceId);
+    if (!workspace) throw new Error('Workspace not found.');
+
+    const currentSnapshot = getTrialSnapshot(workspace, getTrialPolicy());
+    assertTrialActionAllowed(action, currentSnapshot);
+    workspace.trialUsageCount += 1;
+    workspace.updatedAt = new Date().toISOString();
+    this.persistState();
+    return getTrialSnapshot(workspace, getTrialPolicy());
+  }
+
   public getUserMembership(workspaceId: string, userId: string): WorkspaceMemberRecord | null {
     const member = Object.values(this.state.memberships).find(
       m => m.workspaceId === workspaceId && m.userId === userId
@@ -216,14 +253,18 @@ export class DatabaseService {
     update: Partial<WorkspaceDataPayload> | ((prev: WorkspaceDataPayload) => WorkspaceDataPayload)
   ): WorkspaceDataPayload {
     const existing = this.state.workspaceData[workspaceId] || {
-      businessSetup: { name: 'New Brand', industry: 'General', targetAudience: 'All', description: '', tone: 'Professional', colors: ['#EA580C'], keywords: [] },
+      businessSetup: { name: '', industry: '', targetAudience: '', description: '', tone: '', products: '', goals: '', colors: ['#111111', '#FFFFFF', '#FF4F00', '#FFD400'], keywords: [] },
       businessBrain: { elevatorPitch: '', valueProposition: '', competitorList: [], synced: false },
       research: { marketOverview: '', competitorAnalysis: '', trendingHashtags: [], personaProfiles: [], approved: false },
       strategy: { channels: [], pillars: [], campaignThemes: [], approved: false },
       contentPlan: [],
       analytics: [],
       memoryLogs: [],
-      currentStep: 'dashboard'
+      currentStep: 'dashboard',
+      learningProgress: {
+        dismissed: false,
+        completedLessonIds: []
+      }
     };
 
     const next = typeof update === 'function' ? update(existing) : { ...existing, ...update };

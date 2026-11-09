@@ -5,6 +5,8 @@
 **Auditor:** Senior SaaS Software Architect  
 **Status:** Verified Against Codebase  
 
+> Historical architecture snapshot. Later auth/workspace scaffolding and the Vercel frontend-only setup changed the implementation. For current architecture and risks, see [14-IMPLEMENTATION-AUDIT.md](./14-IMPLEMENTATION-AUDIT.md) and [15-AI-PROVIDER-FOUNDATION.md](./15-AI-PROVIDER-FOUNDATION.md).
+
 ---
 
 ## 1. Existing System Architecture Map

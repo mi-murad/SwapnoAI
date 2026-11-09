@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/database';
-import { UserRecord, WorkspaceRecord, WorkspaceRole } from '../types';
+import { UserRecord, WorkspaceDataPayload, WorkspaceRecord, WorkspaceRole } from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET || (
   process.env.NODE_ENV === 'production'
@@ -51,7 +51,7 @@ export class AuthService {
     password: string,
     fullName: string,
     businessName: string,
-    initialSetup?: any
+    initialSetup?: Partial<WorkspaceDataPayload['businessSetup']>
   ): Promise<{ user: UserRecord; workspace: WorkspaceRecord; token: string }> {
     const existing = db.getUserByEmail(email);
     if (existing) {

@@ -5,6 +5,26 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-brand-light: #FFFFFF;
+  --color-brand-orange: #FF4F00;
+  --color-brand-yellow: #FFD400;
+  --color-brand-black: #111111;
+}
+
+:focus-visible {
+  outline: 2px solid #FFD400;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Custom scrollbar utility for the dark terminal */

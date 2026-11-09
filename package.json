@@ -12,7 +12,8 @@
     "build:client": "vite build",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:providers": "tsx --test src/server/tests/aiProviderRegistry.test.ts src/server/tests/openAICompatibleProvider.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.11.0",
@@ -23,6 +24,7 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.2.1",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",

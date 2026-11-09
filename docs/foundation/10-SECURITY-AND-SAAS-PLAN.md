@@ -3,7 +3,7 @@
 **Phase:** Foundation Sprint (Phases 1 & 2)  
 **Date:** November 2026  
 **Auditor / Security Architect:** Senior SaaS Security & Cloud Infrastructure Architect  
-**Status:** Approved Security Architecture Specification  
+**Status:** Proposed target security plan; controls shown below are not necessarily implemented or verified. Current controls and blockers are in `docs/SECURITY-AND-PRIVACY.md`.
 
 ---
 
