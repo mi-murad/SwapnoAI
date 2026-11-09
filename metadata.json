@@ -1,0 +1,6 @@
+{
+  "name": "Swapno AI",
+  "description": "An AI Marketing Operating System that helps businesses research, plan, create, approve, publish, and analyze marketing from one intelligent dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
